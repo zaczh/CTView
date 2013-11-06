@@ -54,7 +54,7 @@ static CGFloat widthCallback( void* ref ){
     self.emojiArray = [[[NSMutableArray alloc] init] autorelease];
     self.linkArray = [[[NSMutableArray alloc] init] autorelease];
     //the emojiname-image dictionary
-    emojiDict = [[NSDictionary alloc] initWithContentsOfFile:[[NSBundle mainBundle] pathForResource:@"emotion" ofType:@"plist"]];
+    emojiDict = [[NSDictionary alloc] initWithContentsOfFile:[[NSBundle mainBundle] pathForResource:@"emoji" ofType:@"plist"]];
 
 }
 
@@ -82,7 +82,6 @@ static CGFloat widthCallback( void* ref ){
 // An empty implementation adversely affects performance during animation.
 - (void)drawRect:(CGRect)rect
 {
-    NSLog(@"drawrect");
     [super drawRect:rect];
     if(_attributedText == nil || _attributedText.length ==0)
         return;
@@ -97,7 +96,7 @@ static CGFloat widthCallback( void* ref ){
     CTRunDelegateRef delegate = CTRunDelegateCreate(&callbacks, NULL);
     NSDictionary *imageAttributedDictionary = [NSDictionary dictionaryWithObjectsAndKeys:(__bridge id)delegate,(NSString *)kCTRunDelegateAttributeName,(id)[UIColor clearColor].CGColor,kCTForegroundColorAttributeName, nil];
     NSDictionary *linkAttributeDictionary = [NSDictionary dictionaryWithObjectsAndKeys:(id)[UIColor blueColor].CGColor,kCTForegroundColorAttributeName, nil];
-    NSAttributedString *faceAttributedString = [[[NSAttributedString alloc] initWithString:EMOTION_REPLACE_STR attributes:imageAttributedDictionary] autorelease];
+    NSAttributedString *faceAttributedString = [[[NSAttributedString alloc] initWithString:EMOJI_REPLACE_STR attributes:imageAttributedDictionary] autorelease];
     
     NSMutableAttributedString *newAttributedStr = [[[NSMutableAttributedString alloc] initWithAttributedString:_attributedText] autorelease];
     
@@ -114,7 +113,7 @@ static CGFloat widthCallback( void* ref ){
     NSRange range = NSMakeRange(0, newAttributedStr.mutableString.length);
     while(range.length>0)
     {
-        range = [newAttributedStr.mutableString rangeOfString:EMOTION_RE_PATTERN options:NSRegularExpressionSearch range:range];
+        range = [newAttributedStr.mutableString rangeOfString:EMOJI_RE_PATTERN options:NSRegularExpressionSearch range:range];
         if(range.location == NSNotFound)
         {
             break;
@@ -124,10 +123,10 @@ static CGFloat widthCallback( void* ref ){
             NSString *emojiName = [newAttributedStr.mutableString substringWithRange:range];
             if([emojiDict objectForKey:emojiName] != nil)
             {
-                [newAttributedStr.mutableString replaceOccurrencesOfString:emojiName withString:EMOTION_REPLACE_STR options:NSLiteralSearch range:range];
+                [newAttributedStr.mutableString replaceOccurrencesOfString:emojiName withString:EMOJI_REPLACE_STR options:NSLiteralSearch range:range];
                 [_emojiArray addObject:[NSDictionary dictionaryWithObjectsAndKeys:[NSNumber numberWithInt:range.location],kRangeLocation,[emojiDict objectForKey:emojiName],kImageName,nil]];
                 
-                range.location += EMOTION_REPLACE_STR.length;
+                range.location += EMOJI_REPLACE_STR.length;
             }
             else
             {
@@ -157,7 +156,7 @@ static CGFloat widthCallback( void* ref ){
     
     for(NSDictionary *dict in _emojiArray)
     {
-        [newAttributedStr replaceCharactersInRange:NSMakeRange([[dict objectForKey:kRangeLocation] intValue], EMOTION_REPLACE_STR.length) withAttributedString:faceAttributedString];
+        [newAttributedStr replaceCharactersInRange:NSMakeRange([[dict objectForKey:kRangeLocation] intValue], EMOJI_REPLACE_STR.length) withAttributedString:faceAttributedString];
     }
     for(NSDictionary *dict in _linkArray)
     {
@@ -185,7 +184,6 @@ static CGFloat widthCallback( void* ref ){
     
     int imgIndex = 0;
     int linkIndex = 0;
-//    NSLog(@"frame = %@",CTFrameGetLines(frame));
     CTFrameDraw(frame, context);
     self.renderedAttributedText = newAttributedStr;
 
@@ -312,6 +310,7 @@ static CGFloat widthCallback( void* ref ){
     [super dealloc];
 }
 
+#pragma mark - click events
 - (void)touchesEnded:(NSSet *)touches withEvent:(UIEvent *)event
 {
     CGPoint point = [[touches anyObject] locationInView:self];
@@ -378,7 +377,7 @@ static CGFloat widthCallback( void* ref ){
     NSRange range = NSMakeRange(0, newAttributedStr.mutableString.length);
     while(range.length>0)
     {
-        range = [newAttributedStr.mutableString rangeOfString:EMOTION_RE_PATTERN options:NSRegularExpressionSearch range:range];
+        range = [newAttributedStr.mutableString rangeOfString:EMOJI_RE_PATTERN options:NSRegularExpressionSearch range:range];
         if(range.location == NSNotFound)
         {
             break;
@@ -388,8 +387,8 @@ static CGFloat widthCallback( void* ref ){
             NSString *emojiName = [newAttributedStr.mutableString substringWithRange:range];
             if([emojiDict objectForKey:emojiName] != nil)
             {
-                [newAttributedStr.mutableString replaceOccurrencesOfString:emojiName withString:EMOTION_REPLACE_STR options:NSLiteralSearch range:range];
-                range.location += EMOTION_REPLACE_STR.length;
+                [newAttributedStr.mutableString replaceOccurrencesOfString:emojiName withString:EMOJI_REPLACE_STR options:NSLiteralSearch range:range];
+                range.location += EMOJI_REPLACE_STR.length;
             }
             else
             {
