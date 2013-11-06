@@ -18,13 +18,13 @@
 @property(retain, nonatomic) NSMutableArray *emojiArray;
 @property(retain, nonatomic) NSAttributedString *renderedAttributedText;
 @property(retain, nonatomic) NSMutableArray *linkArray;
-
+@property(retain, nonatomic) NSDictionary *emojiDict;
 @property (readwrite, nonatomic, assign) CTFramesetterRef framesetter;
 
 @end
 
 
-static NSDictionary *emojiDict;
+
 
 /* Callbacks */
 static CGFloat ascentCallback( void *ref ){
@@ -54,7 +54,7 @@ static CGFloat widthCallback( void* ref ){
     self.emojiArray = [[[NSMutableArray alloc] init] autorelease];
     self.linkArray = [[[NSMutableArray alloc] init] autorelease];
     //the emojiname-image dictionary
-    emojiDict = [[NSDictionary alloc] initWithContentsOfFile:[[NSBundle mainBundle] pathForResource:@"emoji" ofType:@"plist"]];
+    self.emojiDict = [[NSDictionary alloc] initWithContentsOfFile:[[NSBundle mainBundle] pathForResource:@"emoji" ofType:@"plist"]];
 
 }
 
@@ -121,10 +121,10 @@ static CGFloat widthCallback( void* ref ){
         else
         {
             NSString *emojiName = [newAttributedStr.mutableString substringWithRange:range];
-            if([emojiDict objectForKey:emojiName] != nil)
+            if([self.emojiDict objectForKey:emojiName] != nil)
             {
                 [newAttributedStr.mutableString replaceOccurrencesOfString:emojiName withString:EMOJI_REPLACE_STR options:NSLiteralSearch range:range];
-                [_emojiArray addObject:[NSDictionary dictionaryWithObjectsAndKeys:[NSNumber numberWithInt:range.location],kRangeLocation,[emojiDict objectForKey:emojiName],kImageName,nil]];
+                [_emojiArray addObject:[NSDictionary dictionaryWithObjectsAndKeys:[NSNumber numberWithInt:range.location],kRangeLocation,[self.emojiDict objectForKey:emojiName],kImageName,nil]];
                 
                 range.location += EMOJI_REPLACE_STR.length;
             }
@@ -373,6 +373,7 @@ static CGFloat widthCallback( void* ref ){
 #pragma mark - class methods
 + (CGSize)fitSizeForAttributedString:(NSAttributedString *)attrStr boundingSize:(CGSize)size options:(NSStringDrawingOptions)options context:(NSStringDrawingContext *)context
 {
+    NSDictionary *emojiDict = [[[NSDictionary alloc] initWithContentsOfFile:[[NSBundle mainBundle] pathForResource:@"emoji" ofType:@"plist"]] autorelease];
     NSMutableAttributedString *newAttributedStr = [[[NSMutableAttributedString alloc] initWithAttributedString:attrStr] autorelease];
     NSRange range = NSMakeRange(0, newAttributedStr.mutableString.length);
     while(range.length>0)
