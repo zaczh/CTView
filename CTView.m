@@ -315,7 +315,7 @@ static CGFloat widthCallback( void* ref ){
 {
     CGPoint point = [[touches anyObject] locationInView:self];
     BOOL clickLink = NO;
-    //we need to transform the coordination first
+    //we need to transform the coordinatesfirst
     CGPoint transformedPoint = CGPointMake(point.x, self.frame.size.height - point.y);
     if(!self.renderedAttributedText)
     {
