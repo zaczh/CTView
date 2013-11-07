@@ -294,6 +294,21 @@ static CGFloat widthCallback( void* ref ){
     else
         [super setFrame:frame];
 }
+
+- (CGSize)intrinsicContentSize
+{
+    if(!self.text)
+    {
+        return CGSizeZero;
+    }
+    else
+    {
+        NSMutableAttributedString *muteAttrStr = [[NSMutableAttributedString alloc] initWithString:self.text];
+        [muteAttrStr addAttribute:NSFontAttributeName value:self.font range:NSMakeRange(0, muteAttrStr.length)];
+        return [muteAttrStr boundingRectWithSize:CGSizeMake(self.frame.size.width, CGFLOAT_MAX) options:NSStringDrawingUsesLineFragmentOrigin|NSStringDrawingUsesFontLeading context:nil].size;
+    }
+}
+
 - (void)dealloc
 {
     [_text release];
