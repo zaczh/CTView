@@ -110,6 +110,7 @@ static CGFloat widthCallback( void* ref ){
     [newAttributedStr addAttribute:(NSString *)kCTForegroundColorAttributeName value:(__bridge id)self.textColor.CGColor range:NSMakeRange(0, newAttributedStr.length)];
     
     //find emoji
+    [_emojiArray removeAllObjects];
     NSRange range = NSMakeRange(0, newAttributedStr.mutableString.length);
     while(range.length>0)
     {
