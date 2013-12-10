@@ -356,14 +356,16 @@ static CGFloat widthCallback( void* ref ){
         {
             CTLineRef line = CFArrayGetValueAtIndex(lines, i);
             
-            long pointIndex = CTLineGetStringIndexForPosition(line,transformedPoint);
+            //long pointIndex = CTLineGetStringIndexForPosition(line,transformedPoint);
             
             for(NSDictionary *dict in _linkArray)
             {
                 long linkIndex = [[dict objectForKey:kRangeLocation] longValue];
                 NSString *linkStr = [dict objectForKey:kLinkUrl];
                 
-                if(pointIndex > linkIndex && pointIndex <= linkIndex + linkStr.length)
+                //if(pointIndex > linkIndex && pointIndex <= linkIndex + linkStr.length)
+                if(transformedPoint.x <= CTLineGetOffsetForStringIndex(line,linkIndex + linkStr.length, NULL) &&
+                   transformedPoint.x >= CTLineGetOffsetForStringIndex(line,linkIndex, NULL))
                 {
                     //OK, finally we've found the link
                     if([self.delegate respondsToSelector:@selector(CTView:willOpenLinkURL:)])
