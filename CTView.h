@@ -5,14 +5,14 @@
 
 @interface CTView : UIView
 
-@property (retain, nonatomic) NSString *text;
-@property (retain, nonatomic) NSAttributedString *attributedText;
-@property (retain, nonatomic) UIFont *font;
-@property (retain, nonatomic) UIColor *textColor;
+@property (strong, nonatomic) NSString *text;
+@property (strong, nonatomic) NSAttributedString *attributedText;
+@property (strong, nonatomic) UIFont *font;
+@property (strong, nonatomic) UIColor *textColor;
 @property (nonatomic) NSLineBreakMode lineBreakMode;
 @property (nonatomic) NSTextAlignment textAlignment;
-@property (retain, nonatomic) id<CTViewDelegate> delegate;
-@property (nonatomic, assign) CGSize bestFitSize;
+@property (nonatomic,assign) id<CTViewDelegate> delegate;
+@property (readonly, assign) CGSize bestFitSize;
 
 /*
  use this method to calculate the size of the drawing area,
