@@ -5,14 +5,14 @@
 
 @interface CTView : UIView
 
-@property (strong, nonatomic) NSString *text;
-@property (strong, nonatomic) NSAttributedString *attributedText;
-@property (strong, nonatomic) UIFont *font;
-@property (strong, nonatomic) UIColor *textColor;
+@property (copy, nonatomic) NSString *text;
+@property (copy, nonatomic) NSAttributedString *attributedText;
+@property (copy, nonatomic) UIFont *font;
+@property (copy, nonatomic) UIColor *textColor;
+@property (copy, nonatomic) UIColor *backgroundColor;
 @property (nonatomic) NSLineBreakMode lineBreakMode;
 @property (nonatomic) NSTextAlignment textAlignment;
 @property (nonatomic,assign) id<CTViewDelegate> delegate;
-@property (readonly, assign) CGSize bestFitSize;
 
 /*
  use this method to calculate the size of the drawing area,
@@ -21,13 +21,10 @@
  And the returned size is a float value, you may need to ceil it to an int one.
  */
 + (CGSize)fitSizeForAttributedString:(NSAttributedString *)attrStr boundingSize:(CGSize)size options:(NSStringDrawingOptions)options context:(NSStringDrawingContext *)context;
-
 @end
 
 
 @protocol CTViewDelegate <NSObject>
-
 @required
 - (void)CTView:(CTView *)view willOpenLinkURL:(NSURL *)url;
-
 @end

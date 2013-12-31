@@ -7,7 +7,9 @@
 //and won't be shrinked when been laid out.
 //Any CJK charecters is OK.
 //#define EMOJI_REPLACE_STR @"\ufffc"
-
+#define EMOJI_RE_PATTERN @"\\[[\u4e00-\u9fa5a-zA-Z]{1,8}\\]"
+#define EMOJI_REPLACE_STR @"空"
+#define URL_RE_PATTERN @"(([hH]ttp[s]{0,1}|ftp|HTTP)://[a-zA-Z0-9\\.\\-]+\\.([a-zA-Z]{2,4})(:\\d+)?(/[a-zA-Z0-9\\.\\-~!@#$%^&*+?:_/=<>]*)?)|(www.[a-zA-Z0-9\\.\\-]+\\.([a-zA-Z]{2,4})(:\\d+)?(/[a-zA-Z0-9\\.\\-~!@#$%^&*+?:_/=<>]*)?)"
 
 #define kRangeLocation @"rangelocation"
 #define kImageName @"imagename"
@@ -15,7 +17,7 @@
 
 @interface CTView()
 @property (strong, nonatomic) NSMutableArray *emojiArray;
-@property (strong, nonatomic) NSAttributedString *renderedAttributedText;
+@property (strong, nonatomic) NSAttributedString *preprocessedAttributedString;
 @property (strong, nonatomic) NSMutableArray *linkArray;
 @property (strong, nonatomic) NSDictionary *emojiDict;
 @property (readwrite, nonatomic, assign) CTFramesetterRef framesetter;
@@ -25,20 +27,19 @@
 
 - (void)baseInit
 {
-    _text = @"";
-    _attributedText = [[NSAttributedString alloc] initWithString:@""];
-    _renderedAttributedText = nil;
-    self.font = [UIFont systemFontOfSize:15];
-    self.lineBreakMode = NSLineBreakByWordWrapping;
-    self.textAlignment = NSTextAlignmentLeft;
-    self.backgroundColor = [UIColor clearColor];
-    self.textColor = [UIColor blackColor];
+    _text = nil;
+    _attributedText = nil;
+    _font = [UIFont systemFontOfSize:15];
+    _lineBreakMode = NSLineBreakByWordWrapping;
+    _textAlignment = NSTextAlignmentLeft;
+    _backgroundColor = [UIColor clearColor];
+    _textColor = [UIColor blackColor];
     
-    self.emojiArray = [[[NSMutableArray alloc] init] autorelease];
-    self.linkArray = [[[NSMutableArray alloc] init] autorelease];
+    _emojiArray = [[NSMutableArray alloc] init];
+    _linkArray = [[NSMutableArray alloc] init];
     //the emojiname-image dictionary
-    self.emojiDict = [[[NSDictionary alloc] initWithContentsOfFile:[[NSBundle mainBundle] pathForResource:@"emotion" ofType:@"plist"]] autorelease];
-    
+    _emojiDict = [[NSDictionary alloc] initWithContentsOfFile:[[NSBundle mainBundle] pathForResource:@"emoji" ofType:@"plist"]];
+    _preprocessedAttributedString = [[NSAttributedString alloc] init];
     //we want this view redraw itself when its frame changes
 //    self.contentMode = UIViewContentModeRedraw;
     
@@ -84,15 +85,11 @@
 //    [(id)ref release];
 //}
 
-- (NSAttributedString *)preprocessedString
+- (void)preprocessString
 {
-    CTFontRef userDefinedFont = CTFontCreateWithName((CFStringRef)self.font.fontName, self.font.pointSize, NULL);
-//
-//    
-//    
-//
-
+    self.preprocessedAttributedString = nil;
     
+    CTFontRef userDefinedFont = CTFontCreateWithName((CFStringRef)self.font.fontName, self.font.pointSize, NULL);
     
 //    CTRunDelegateCallbacks callbacks;
 //    callbacks.version = kCTRunDelegateCurrentVersion;
@@ -108,9 +105,9 @@
     NSDictionary *imageAttributedDictionary = [NSDictionary dictionaryWithObjectsAndKeys:(NSString *)(__bridge id)userDefinedFont,kCTFontAttributeName,(id)[UIColor clearColor].CGColor,kCTForegroundColorAttributeName, nil];
 //    CFRelease(delegate);
     NSDictionary *linkAttributeDictionary = [NSDictionary dictionaryWithObjectsAndKeys:(id)[UIColor blueColor].CGColor,kCTForegroundColorAttributeName, nil];
-    NSAttributedString *faceAttributedString = [[[NSAttributedString alloc] initWithString:EMOTION_REPLACE_STR attributes:imageAttributedDictionary] autorelease];
+    NSAttributedString *faceAttributedString = [[NSAttributedString alloc] initWithString:EMOJI_REPLACE_STR attributes:imageAttributedDictionary];
     
-    NSMutableAttributedString *newAttributedStr = [[[NSMutableAttributedString alloc] initWithAttributedString:_attributedText] autorelease];
+    NSMutableAttributedString *newAttributedStr = [[NSMutableAttributedString alloc] initWithAttributedString:_attributedText];
     
     //set font
     [newAttributedStr removeAttribute:NSFontAttributeName range:NSMakeRange(0, newAttributedStr.length)];
@@ -120,14 +117,12 @@
     //set color
     [newAttributedStr addAttribute:(NSString *)kCTForegroundColorAttributeName value:(__bridge id)self.textColor.CGColor range:NSMakeRange(0, newAttributedStr.length)];
     
-    
-    
     //find emoji
     [_emojiArray removeAllObjects];
     NSRange range = NSMakeRange(0, newAttributedStr.mutableString.length);
     while(range.length>0)
     {
-        range = [newAttributedStr.mutableString rangeOfString:EMOTION_RE_PATTERN options:NSRegularExpressionSearch range:range];
+        range = [newAttributedStr.mutableString rangeOfString:EMOJI_RE_PATTERN options:NSRegularExpressionSearch range:range];
         if(range.location == NSNotFound)
         {
             break;
@@ -137,10 +132,10 @@
             NSString *emojiName = [newAttributedStr.mutableString substringWithRange:range];
             if([self.emojiDict objectForKey:emojiName] != nil)
             {
-                [newAttributedStr.mutableString replaceOccurrencesOfString:emojiName withString:EMOTION_REPLACE_STR options:NSLiteralSearch range:range];
+                [newAttributedStr.mutableString replaceOccurrencesOfString:emojiName withString:EMOJI_REPLACE_STR options:NSLiteralSearch range:range];
                 [_emojiArray addObject:[NSDictionary dictionaryWithObjectsAndKeys:[NSNumber numberWithInt:range.location],kRangeLocation,[self.emojiDict objectForKey:emojiName],kImageName,nil]];
                 
-                range.location += EMOTION_REPLACE_STR.length;
+                range.location += EMOJI_REPLACE_STR.length;
             }
             else
             {
@@ -171,31 +166,45 @@
     
     for(NSDictionary *dict in _emojiArray)
     {
-        [newAttributedStr replaceCharactersInRange:NSMakeRange([[dict objectForKey:kRangeLocation] intValue], EMOTION_REPLACE_STR.length) withAttributedString:faceAttributedString];
+        [newAttributedStr replaceCharactersInRange:NSMakeRange([[dict objectForKey:kRangeLocation] intValue], EMOJI_REPLACE_STR.length) withAttributedString:faceAttributedString];
     }
     for(NSDictionary *dict in _linkArray)
     {
         [newAttributedStr addAttributes:linkAttributeDictionary range:NSMakeRange([[dict objectForKey:kRangeLocation] intValue], [[dict objectForKey:kLinkUrl] length])];
     }
-    return newAttributedStr;
+    self.preprocessedAttributedString = newAttributedStr;
+    if(_framesetter)
+    {
+        CFRelease(_framesetter);
+    }
+    _framesetter = CTFramesetterCreateWithAttributedString((CFAttributedStringRef)self.preprocessedAttributedString);
 }
 
-// Only override drawRect: if you perform custom drawing.
-// An empty implementation adversely affects performance during animation.
+
+- (void)drawBackground:(CGRect)rect
+{
+    CGContextRef context = UIGraphicsGetCurrentContext();
+    CGContextSetTextMatrix(context, CGAffineTransformIdentity);
+    CGContextClearRect(context, rect);
+    if([self.backgroundColor isEqual:[UIColor clearColor]])
+    {
+        CGContextSetFillColorWithColor(context, [UIColor whiteColor].CGColor);
+    }
+    else
+    {
+        CGContextSetFillColorWithColor(context, self.backgroundColor.CGColor);
+    }
+    CGContextFillRect(context, rect);
+}
+
 - (void)drawRect:(CGRect)rect
 {
     [super drawRect:rect];
-
     
-//    imgWidth = self.font.pointSize;
-    if(_attributedText == nil || _attributedText.length ==0)
-        return;
-//    if(!CGRectIntersectsRect(rect, self.bounds))
-//        return;
+    [self drawBackground:rect];
     
-
+    [self preprocessString];
     
-
     CGContextRef context = UIGraphicsGetCurrentContext();
     // Flip the coordinate system
     CGContextTranslateCTM(context, 0, self.bounds.size.height);
@@ -212,13 +221,8 @@
 //    NSAttributedString *str = [[NSAttributedString alloc] initWithString:@"dagagaga"];
 //    newAttributedStr = str;
     
-    NSAttributedString *newAttributedStr = [self preprocessedString];
-    
-    if(_framesetter == NULL)
-    {
-        _framesetter = CTFramesetterCreateWithAttributedString((CFAttributedStringRef)newAttributedStr);
-    }
-    CTFrameRef frame = CTFramesetterCreateFrame(_framesetter, CFRangeMake(0, newAttributedStr.length), path, NULL);
+
+    CTFrameRef frame = CTFramesetterCreateFrame(_framesetter, CFRangeMake(0, self.preprocessedAttributedString.length), path, NULL);
     if(frame)
     {
         CTLineRef line;
@@ -227,7 +231,6 @@
         int linkIndex = 0;
     //    NSLog(@"frame = %@",CTFrameGetLines(frame));
         CTFrameDraw(frame, context);
-        self.renderedAttributedText = newAttributedStr;
         
         CGPoint origins[CFArrayGetCount(CTFrameGetLines(frame))];
         CTFrameGetLineOrigins(frame, CFRangeMake(0, 0), origins);
@@ -304,91 +307,73 @@
     }
 }
 
+- (void)setFont:(UIFont *)font
+{
+    if(font == nil)
+    {
+        _font = nil;
+    }
+    else
+    {
+        _font = [font copy];
+        [self setNeedsDisplay];
+    }
+}
+
 - (void)setText:(NSString *)text
 {
-
+    if(text == nil)
     {
-    if([_text isEqualToString:text])
-        return;
-
-    [_text release];
-    _text = [text copy];
-    
-    if(_attributedText != nil)
-    {
-        [_attributedText release];
+        _text = nil;
     }
-    _attributedText = [[NSAttributedString alloc] initWithString:text];
-        
-    [self setNeedsDisplay];
-
+    else if(![_text isEqualToString:text])
+    {
+        _text = [text copy];
+        _attributedText = [[NSAttributedString alloc] initWithString:text];
+        [self setNeedsDisplay];
     }
 }
 
 - (void)setAttributedText:(NSAttributedString *)attributedText
 {
-
+    if(attributedText == nil)
     {
-    if([_attributedText isEqualToAttributedString:attributedText])
-        return;
-    
-    [_attributedText release];
-    _attributedText = [attributedText copy];
-    
-    if(_text != nil)
-    {
-        [_text release];
+        _attributedText = nil;
     }
-    _text = [_attributedText.string copy];
-    [self setNeedsDisplay];
-//        self.backgroundColor = [UIColor clearColor];
+    else if(![_attributedText isEqualToAttributedString:attributedText])
+    {
+        _attributedText = [attributedText copy];
+        _text = [_attributedText.string copy];
+        [self setNeedsDisplay];
     }
 }
-//
-- (void)setFrame:(CGRect)frame
+
+- (void)setBackgroundColor:(UIColor *)backgroundColor
 {
-    if(CGRectEqualToRect(frame, self.frame))
-        return;
-    else
-        [super setFrame:frame];
+    if(![backgroundColor isEqual:_backgroundColor])
+    {
+        _backgroundColor = [backgroundColor copy];
+        [self setNeedsDisplay];
+    }
 }
 
 - (CGSize)intrinsicContentSize
 {
-    if(!self.text)
-    {
-        return CGSizeZero;
-    }
-    else
-    {
-        NSMutableAttributedString *muteAttrStr = [[[NSMutableAttributedString alloc] initWithString:self.text] autorelease];
-        [muteAttrStr addAttribute:NSFontAttributeName value:self.font range:NSMakeRange(0, muteAttrStr.length)];
-        return [muteAttrStr boundingRectWithSize:CGSizeMake(self.frame.size.width, CGFLOAT_MAX) options:NSStringDrawingUsesLineFragmentOrigin|NSStringDrawingUsesFontLeading context:nil].size;
-    }
+    return CGSizeMake(UIViewNoIntrinsicMetric, UIViewNoIntrinsicMetric);
 }
 
 
 - (void)dealloc
 {
-    [_text release];
-    [_attributedText release];
-    [_emojiArray release];
-    [_linkArray release];
-    self.renderedAttributedText = nil;
+    self.text = nil;
+    self.attributedText = nil;
+    self.emojiArray = nil;
+    self.linkArray = nil;
     if(_framesetter)
     {
         CFRelease(_framesetter);
         _framesetter = NULL;
     }
-
-    [super dealloc];
-}
-
-- (void)reset
-{
-    self.text = @"";
-    self.attributedText = [[[NSAttributedString alloc] initWithString:self.text] autorelease];
-    [self setNeedsDisplay];
 }
 
 - (void)touchesEnded:(NSSet *)touches withEvent:(UIEvent *)event
@@ -397,12 +382,7 @@
     BOOL clickLink = NO;
     //we need to transform the coordination first
     CGPoint transformedPoint = CGPointMake(point.x, self.frame.size.height - point.y);
-    NSLog(@"transformedPoint = %f,%f",transformedPoint.x,transformedPoint.y);
-    if(!self.renderedAttributedText)
-    {
-        [super touchesEnded:touches withEvent:event];
-        return;
-    }
+//    NSLog(@"transformedPoint = %f,%f",transformedPoint.x,transformedPoint.y);
     CGMutablePathRef path = CGPathCreateMutable();
     CGPathAddRect(path, NULL, self.bounds);
     
@@ -426,7 +406,7 @@
                 {
                     long linkIndex = [[dict objectForKey:kRangeLocation] longValue];
                     NSString *linkStr = [dict objectForKey:kLinkUrl];
-                    NSLog(@"CTLineGetOffsetForStringIndex: %f,%f", CTLineGetOffsetForStringIndex(line,linkIndex,NULL), CTLineGetOffsetForStringIndex(line,linkIndex + linkStr.length,NULL));
+//                    NSLog(@"CTLineGetOffsetForStringIndex: %f,%f", CTLineGetOffsetForStringIndex(line,linkIndex,NULL), CTLineGetOffsetForStringIndex(line,linkIndex + linkStr.length,NULL));
 
     //                if(pointIndex >= linkIndex && pointIndex <= linkIndex + linkStr.length)
                     if(transformedPoint.x <= CTLineGetOffsetForStringIndex(line,linkIndex + linkStr.length,NULL) &&
@@ -457,12 +437,12 @@
 #pragma mark - class methods
 + (CGSize)fitSizeForAttributedString:(NSAttributedString *)attrStr boundingSize:(CGSize)size options:(NSStringDrawingOptions)options context:(NSStringDrawingContext *)context
 {
-    NSDictionary *emojiDict = [[[NSDictionary alloc] initWithContentsOfFile:[[NSBundle mainBundle] pathForResource:@"emotion" ofType:@"plist"]] autorelease];
-    NSMutableAttributedString *newAttributedStr = [[[NSMutableAttributedString alloc] initWithAttributedString:attrStr] autorelease];
+    NSDictionary *emojiDict = [[NSDictionary alloc] initWithContentsOfFile:[[NSBundle mainBundle] pathForResource:@"emoji" ofType:@"plist"]];
+    NSMutableAttributedString *newAttributedStr = [[NSMutableAttributedString alloc] initWithAttributedString:attrStr];
     NSRange range = NSMakeRange(0, newAttributedStr.mutableString.length);
     while(range.length>0)
     {
-        range = [newAttributedStr.mutableString rangeOfString:EMOTION_RE_PATTERN options:NSRegularExpressionSearch range:range];
+        range = [newAttributedStr.mutableString rangeOfString:EMOJI_RE_PATTERN options:NSRegularExpressionSearch range:range];
         if(range.location == NSNotFound)
         {
             break;
@@ -472,8 +452,8 @@
             NSString *emojiName = [newAttributedStr.mutableString substringWithRange:range];
             if([emojiDict objectForKey:emojiName] != nil)
             {
-                [newAttributedStr.mutableString replaceOccurrencesOfString:emojiName withString:EMOTION_REPLACE_STR options:NSLiteralSearch range:range];
-                range.location += EMOTION_REPLACE_STR.length;
+                [newAttributedStr.mutableString replaceOccurrencesOfString:emojiName withString:EMOJI_REPLACE_STR options:NSLiteralSearch range:range];
+                range.location += EMOJI_REPLACE_STR.length;
             }
             else
             {
@@ -483,20 +463,13 @@
         }
     }
     CTFramesetterRef framesetter = CTFramesetterCreateWithAttributedString((__bridge CFAttributedStringRef)newAttributedStr);
-//    CGMutablePathRef path = CGPathCreateMutable();
-//    CGPathAddRect(path, NULL, CGRectMake(0, 0, size.width, size.height));
-//    CTFrameRef frame = CTFramesetterCreateFrame(framesetter, CFRangeMake(0, 0), path, NULL);
     CGSize fitSize = CTFramesetterSuggestFrameSizeWithConstraints(framesetter, CFRangeMake(0, [newAttributedStr length]), NULL, CGSizeMake(size.width, CGFLOAT_MAX), NULL);
-//    CGSize messuredSize = [self measureFrame:frame forContext:nil];
-//    CFRelease(frame);
-//    CFRelease(path);
     CFRelease(framesetter);
-
-//    NSLog(@"fitsize:(%f,%f),measured size:(%f,%f)",fitSize.width,fitSize.height,messuredSize.width,messuredSize.height);
     return fitSize;
 }
 
 //From http://lists.apple.com/archives/quartz-dev/2008/Mar/msg00079.html
+//Currently not used.
 + (CGSize) measureFrame: (CTFrameRef) frame forContext: (CGContextRef *) cgContext
 {
     CGPathRef framePath = CTFrameGetPath(frame);
