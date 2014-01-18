@@ -1,11 +1,3 @@
-//
-//  CTView.m
-//  TestAll
-//
-//  Created by zjh on 13-10-30.
-//  Copyright (c) 2013年 zjh. All rights reserved.
-//
-
 #import "CTView.h"
 
 //the emoji string style is like "[smile] or [微笑]".
