@@ -28,7 +28,6 @@
 @interface CTView()
 
 @property(retain, nonatomic) NSMutableArray *emojiArray;
-@property(retain, atomic) NSAttributedString *renderedAttributedText;
 @property(retain, nonatomic) NSMutableArray *linkArray;
 @property(retain, nonatomic) NSDictionary *emojiDict;
 @property (readwrite, nonatomic, assign) CTFramesetterRef framesetter;
@@ -37,19 +36,13 @@
 
 @implementation CTView
 
-@synthesize text=_text;
-@synthesize attributedText=_attributedText;
-
-@synthesize renderedAttributedText = _renderedAttributedText;
-
 - (void)baseInit
 {
     _text = @"";
     _attributedText = [[NSAttributedString alloc] initWithString:@""];
-    _renderedAttributedText = nil;
     self.font = [UIFont systemFontOfSize:15];
     self.lineBreakMode = NSLineBreakByWordWrapping;
-    self.textAlignment = NSTextAlignmentLeft;
+    self.textAlignment = NSTextAlignmentRight;
     self.backgroundColor = [UIColor clearColor];
     self.textColor = [UIColor blackColor];
     
@@ -246,7 +239,6 @@
         int linkIndex = 0;
         //    NSLog(@"frame = %@",CTFrameGetLines(frame));
         CTFrameDraw(frame, context);
-        self.renderedAttributedText = newAttributedStr;
         
         CGPoint origins[CFArrayGetCount(CTFrameGetLines(frame))];
         CTFrameGetLineOrigins(frame, CFRangeMake(0, 0), origins);
@@ -374,7 +366,6 @@
     self.preprocessedAttritutedString = nil;
     self.emojiArray = nil;
     self.linkArray = nil;
-    self.renderedAttributedText = nil;
     if(_framesetter)
     {
         CFRelease(_framesetter);
@@ -388,12 +379,12 @@
     BOOL clickLink = NO;
     //we need to transform the coordination first
     CGPoint transformedPoint = CGPointMake(point.x, self.bounds.size.height - point.y);
-    NSLog(@"transformed point: (%f,%f)",transformedPoint.x,transformedPoint.y);
-    if(!self.renderedAttributedText)
+    if(!self.preprocessedAttritutedString)
     {
         [super touchesEnded:touches withEvent:event];
         return;
     }
+    
     CGMutablePathRef path = CGPathCreateMutable();
     CGPathAddRect(path, NULL, self.bounds);
     
@@ -404,36 +395,52 @@
     if(lines)
     {
         CGPoint origins[numOfLines];
-        CTFrameGetLineOrigins(frame, CFRangeMake(0, 0), origins); //2
-        
-        for(int i =0;i<CFArrayGetCount(CTFrameGetLines(frame));i++)
+        CTFrameGetLineOrigins(frame, CFRangeMake(0, 0), origins);
+        for(int i =0;i<numOfLines;i++)
         {
             CGPoint linePoint = origins[i];
-//            NSLog(@"line origin: (%f,%f)",linePoint.x, linePoint.y);
-            if(transformedPoint.y >= linePoint.y && transformedPoint.y <= linePoint.y + self.font.lineHeight)
+            CTLineRef line = CFArrayGetValueAtIndex(lines, i);
+            CGRect relativeLineBounds = CTLineGetBoundsWithOptions(line, 0);
+            CGRect absoluteLineBounds = CGRectMake(linePoint.x + relativeLineBounds.origin.x,
+                                                   linePoint.y + relativeLineBounds.origin.y,
+                                                   relativeLineBounds.size.width,
+                                                   relativeLineBounds.size.height);
+            //make sure the click isn't outsize of the line bounds
+            //(this typically happens in the first or the last line)
+            if(transformedPoint.x > absoluteLineBounds.origin.x + absoluteLineBounds.size.width ||
+               transformedPoint.x < absoluteLineBounds.origin.x)
             {
-                CTLineRef line = CFArrayGetValueAtIndex(lines, i);
+                //in this situation we only need to handle
+                //the line break in the begin and end of the paragraph.
+                if(i == 0 || i == numOfLines - 1)
+                {
+                    NSLog(@"click out of line bounds");
+                    continue;
+                }
+            }
+            
+            if(transformedPoint.y >= linePoint.y &&
+               transformedPoint.y <= linePoint.y + self.font.lineHeight)
+            {
                 CGPoint relativePoint = CGPointMake(transformedPoint.x - linePoint.x, transformedPoint.y - linePoint.y);
                 long pointIndex = CTLineGetStringIndexForPosition(line,relativePoint);
-                NSLog(@"point index: %ld", pointIndex);
+                CFRange lineRange = CTLineGetStringRange(line);
                 for(NSDictionary *dict in _linkArray)
                 {
                     long linkIndex = [[dict objectForKey:kRangeLocation] longValue];
-                    
-                    NSLog(@"link index: %ld",linkIndex);
-                    
                     NSString *linkStr = [dict objectForKey:kLinkUrl];
-//                    NSLog(@"CTLineGetOffsetForStringIndex: %f,%f", CTLineGetOffsetForStringIndex(line,linkIndex,NULL), CTLineGetOffsetForStringIndex(line,linkIndex + linkStr.length,NULL));
                     
-                    if(pointIndex >= linkIndex && pointIndex <= linkIndex + linkStr.length)
-//                    if(transformedPoint.x <= CTLineGetOffsetForStringIndex(line,linkIndex + linkStr.length,NULL) &&
-//                       transformedPoint.x >= CTLineGetOffsetForStringIndex(line,linkIndex,NULL))
+                    if(pointIndex <= lineRange.location + lineRange.length &&
+                       pointIndex >= linkIndex &&
+                       pointIndex <= linkIndex + linkStr.length)
                     {
                         //OK, finally we've found the link
-                        NSLog(@"find link!");
+                        NSLog(@"clicked link: %@", linkStr);
                         if([self.delegate respondsToSelector:@selector(CTView:willOpenLinkURL:)])
                         {
-                            [self.delegate performSelector:@selector(CTView:willOpenLinkURL:) withObject:self withObject:[NSURL URLWithString:linkStr]];
+                            [self.delegate performSelector:@selector(CTView:willOpenLinkURL:)
+                                                withObject:self
+                                                withObject:[NSURL URLWithString:linkStr]];
                             clickLink = YES;
                         }
                         break;
@@ -443,7 +450,8 @@
             }
         }
     }
-    //pass the click events through
+    
+    //pass the click events through if there is no link blow
     if(!clickLink)
     {
         [super touchesEnded:touches withEvent:event];
